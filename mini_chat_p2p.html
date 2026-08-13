@@ -1,0 +1,521 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<meta name="theme-color" content="#111111" />
+<title>Mini Chat</title>
+<style>
+  :root{
+    --bg:#f4f4f4;
+    --panel:#ffffff;
+    --text:#111111;
+    --muted:#777777;
+    --line:#dddddd;
+    --accent:#111111;
+    --mine:#dff6dd;
+    --other:#ffffff;
+    --danger:#b3261e;
+  }
+  *{box-sizing:border-box}
+  html,body{height:100%;margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif;background:var(--bg);color:var(--text)}
+  body{display:flex;justify-content:center}
+  .app{width:100%;max-width:720px;height:100dvh;display:flex;flex-direction:column;background:var(--panel)}
+  header{padding:calc(12px + env(safe-area-inset-top)) 16px 12px;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;gap:12px}
+  .title{font-size:18px;font-weight:700}
+  .status{font-size:12px;color:var(--muted);white-space:nowrap}
+  .status.ok{color:#16803b}
+  .setup{padding:12px 16px;border-bottom:1px solid var(--line);background:#fafafa}
+  .setup summary{cursor:pointer;font-weight:700}
+  .setup-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px}
+  button,.btn{
+    appearance:none;border:1px solid var(--line);background:#fff;color:#111;border-radius:10px;
+    min-height:44px;padding:10px 12px;font-size:14px;font-weight:600;cursor:pointer;
+  }
+  button.primary{background:var(--accent);color:#fff;border-color:var(--accent)}
+  button:disabled{opacity:.45;cursor:not-allowed}
+  textarea{
+    width:100%;min-height:80px;margin-top:8px;border:1px solid var(--line);border-radius:10px;
+    padding:10px;font-size:12px;resize:vertical;background:#fff;color:#111
+  }
+  .hint{font-size:12px;color:var(--muted);line-height:1.4;margin-top:8px}
+  .messages{flex:1;overflow:auto;padding:14px 12px 110px;background:#ececec}
+  .bubble{max-width:82%;margin:7px 0;padding:9px 11px;border-radius:14px;border:1px solid rgba(0,0,0,.05);box-shadow:0 1px 2px rgba(0,0,0,.05)}
+  .bubble.mine{margin-left:auto;background:var(--mine);border-bottom-right-radius:4px}
+  .bubble.other{margin-right:auto;background:var(--other);border-bottom-left-radius:4px}
+  .bubble .time{font-size:10px;color:var(--muted);margin-top:5px;text-align:right}
+  .bubble img,.bubble video{display:block;max-width:100%;border-radius:10px;margin-top:4px}
+  .bubble audio{display:block;width:min(280px,100%);margin-top:4px}
+  .file-name{font-size:12px;color:var(--muted);margin-top:5px;word-break:break-word}
+  .composer{
+    position:fixed;left:50%;bottom:0;transform:translateX(-50%);
+    width:100%;max-width:720px;background:#fff;border-top:1px solid var(--line);
+    padding:8px 10px calc(8px + env(safe-area-inset-bottom));display:grid;
+    grid-template-columns:auto auto 1fr auto;gap:8px;align-items:end
+  }
+  .iconbtn{width:44px;height:44px;border-radius:12px;padding:0;font-size:20px}
+  .message-input{
+    min-height:44px;max-height:110px;border:1px solid var(--line);border-radius:12px;padding:11px 12px;
+    resize:none;font-size:16px;line-height:20px;background:#fff
+  }
+  .recording{background:#ffe8e6!important;color:var(--danger)!important;border-color:#efb0ab!important}
+  .empty{height:100%;display:flex;align-items:center;justify-content:center;text-align:center;color:var(--muted);padding:24px;line-height:1.45}
+  .banner{display:none;padding:8px 12px;font-size:12px;background:#fff4d6;border-bottom:1px solid #ead39a}
+  .banner.show{display:block}
+  @media (max-width:560px){
+    .setup-grid{grid-template-columns:1fr}
+    .bubble{max-width:88%}
+    .composer{grid-template-columns:auto auto 1fr auto}
+  }
+</style>
+</head>
+<body>
+<div class="app">
+  <header>
+    <div class="title">Mini Chat</div>
+    <div id="status" class="status">не подключено</div>
+  </header>
+
+  <div id="banner" class="banner"></div>
+
+  <details class="setup" open>
+    <summary>Подключение двух телефонов</summary>
+
+    <div class="setup-grid">
+      <button id="createBtn" class="primary">1. Создать код</button>
+      <button id="joinBtn">2. Принять код</button>
+    </div>
+
+    <textarea id="codeBox" placeholder="Здесь появится код подключения или вставьте код сюда"></textarea>
+
+    <div class="setup-grid">
+      <button id="copyBtn">Копировать код</button>
+      <button id="applyAnswerBtn" disabled>3. Подтвердить ответ</button>
+    </div>
+
+    <div class="hint">
+      Вариант A создаёт код и отправляет его варианту B. Вариант B вставляет код, нажимает «Принять код» и отправляет появившийся ответ обратно. Вариант A вставляет ответ и нажимает «Подтвердить ответ».
+    </div>
+  </details>
+
+  <main id="messages" class="messages">
+    <div id="empty" class="empty">После подключения здесь появится переписка.<br>Ничего не сохраняется после закрытия страницы.</div>
+  </main>
+
+  <div class="composer">
+    <button id="attachBtn" class="iconbtn" title="Фото или видео" disabled>＋</button>
+    <button id="voiceBtn" class="iconbtn" title="Голосовое" disabled>🎤</button>
+    <textarea id="messageInput" class="message-input" placeholder="Сообщение" rows="1" disabled></textarea>
+    <button id="sendBtn" class="iconbtn primary" title="Отправить" disabled>➤</button>
+    <input id="fileInput" type="file" accept="image/*,video/*" hidden />
+  </div>
+</div>
+
+<script>
+(() => {
+  'use strict';
+
+  const $ = id => document.getElementById(id);
+  const statusEl = $('status');
+  const banner = $('banner');
+  const codeBox = $('codeBox');
+  const messages = $('messages');
+  const empty = $('empty');
+  const createBtn = $('createBtn');
+  const joinBtn = $('joinBtn');
+  const copyBtn = $('copyBtn');
+  const applyAnswerBtn = $('applyAnswerBtn');
+  const attachBtn = $('attachBtn');
+  const voiceBtn = $('voiceBtn');
+  const fileInput = $('fileInput');
+  const input = $('messageInput');
+  const sendBtn = $('sendBtn');
+
+  let pc = null;
+  let dc = null;
+  let isOfferer = false;
+  let mediaRecorder = null;
+  let voiceChunks = [];
+  let currentIncoming = null;
+  const MAX_FILE = 50 * 1024 * 1024;
+  const CHUNK = 16 * 1024;
+
+  const rtcConfig = {
+    iceServers: [
+      { urls: 'stun:stun.l.google.com:19302' },
+      { urls: 'stun:stun1.l.google.com:19302' }
+    ]
+  };
+
+  function setStatus(text, ok=false){
+    statusEl.textContent = text;
+    statusEl.classList.toggle('ok', ok);
+  }
+
+  function showBanner(text){
+    banner.textContent = text;
+    banner.classList.add('show');
+    setTimeout(() => banner.classList.remove('show'), 4500);
+  }
+
+  function setConnected(connected){
+    attachBtn.disabled = !connected;
+    voiceBtn.disabled = !connected;
+    input.disabled = !connected;
+    sendBtn.disabled = !connected;
+    if (connected) {
+      setStatus('подключено', true);
+      document.querySelector('.setup').open = false;
+    }
+  }
+
+  function newPeer(){
+    if (pc) {
+      try { pc.close(); } catch(e){}
+    }
+    pc = new RTCPeerConnection(rtcConfig);
+
+    pc.onconnectionstatechange = () => {
+      const s = pc.connectionState;
+      if (s === 'connected') setConnected(true);
+      else if (s === 'failed' || s === 'disconnected' || s === 'closed') {
+        setConnected(false);
+        setStatus(s === 'failed' ? 'ошибка соединения' : 'не подключено');
+      }
+    };
+
+    pc.oniceconnectionstatechange = () => {
+      if (pc.iceConnectionState === 'failed') {
+        showBanner('Соединение не удалось. В некоторых сетях без отдельного TURN-сервера WebRTC может не подключиться.');
+      }
+    };
+
+    pc.ondatachannel = e => setupChannel(e.channel);
+    return pc;
+  }
+
+  function setupChannel(channel){
+    dc = channel;
+    dc.binaryType = 'arraybuffer';
+    dc.bufferedAmountLowThreshold = 64 * 1024;
+
+    dc.onopen = () => setConnected(true);
+    dc.onclose = () => setConnected(false);
+    dc.onerror = () => showBanner('Ошибка канала связи.');
+
+    dc.onmessage = async e => {
+      if (typeof e.data === 'string') {
+        let msg;
+        try { msg = JSON.parse(e.data); } catch { return; }
+
+        if (msg.type === 'text') {
+          addText(msg.text, false);
+        }
+
+        if (msg.type === 'file-start') {
+          currentIncoming = {
+            name: msg.name,
+            mime: msg.mime,
+            size: msg.size,
+            kind: msg.kind,
+            chunks: [],
+            received: 0
+          };
+        }
+
+        if (msg.type === 'file-end' && currentIncoming) {
+          const blob = new Blob(currentIncoming.chunks, {type: currentIncoming.mime || 'application/octet-stream'});
+          addMedia(blob, currentIncoming.kind, false, currentIncoming.name);
+          currentIncoming = null;
+        }
+      } else if (e.data instanceof ArrayBuffer && currentIncoming) {
+        currentIncoming.chunks.push(e.data);
+        currentIncoming.received += e.data.byteLength;
+      }
+    };
+  }
+
+  function waitIceComplete(peer){
+    return new Promise(resolve => {
+      if (peer.iceGatheringState === 'complete') return resolve();
+      const fn = () => {
+        if (peer.iceGatheringState === 'complete') {
+          peer.removeEventListener('icegatheringstatechange', fn);
+          resolve();
+        }
+      };
+      peer.addEventListener('icegatheringstatechange', fn);
+    });
+  }
+
+  function encodeDesc(desc){
+    return btoa(unescape(encodeURIComponent(JSON.stringify(desc))));
+  }
+
+  function decodeDesc(text){
+    return JSON.parse(decodeURIComponent(escape(atob(text.trim()))));
+  }
+
+  createBtn.onclick = async () => {
+    try {
+      isOfferer = true;
+      newPeer();
+      setupChannel(pc.createDataChannel('chat', {ordered:true}));
+      setStatus('создаю код...');
+      const offer = await pc.createOffer();
+      await pc.setLocalDescription(offer);
+      await waitIceComplete(pc);
+      codeBox.value = encodeDesc(pc.localDescription);
+      applyAnswerBtn.disabled = false;
+      setStatus('отправьте код собеседнику');
+    } catch (e) {
+      console.error(e);
+      showBanner('Не удалось создать код подключения.');
+      setStatus('ошибка');
+    }
+  };
+
+  joinBtn.onclick = async () => {
+    try {
+      const text = codeBox.value.trim();
+      if (!text) return showBanner('Сначала вставьте код подключения.');
+      isOfferer = false;
+      newPeer();
+      setStatus('подключаюсь...');
+      const offer = decodeDesc(text);
+      await pc.setRemoteDescription(offer);
+      const answer = await pc.createAnswer();
+      await pc.setLocalDescription(answer);
+      await waitIceComplete(pc);
+      codeBox.value = encodeDesc(pc.localDescription);
+      setStatus('отправьте ответ обратно');
+    } catch (e) {
+      console.error(e);
+      showBanner('Код не распознан или устарел.');
+      setStatus('ошибка');
+    }
+  };
+
+  applyAnswerBtn.onclick = async () => {
+    try {
+      if (!pc || !isOfferer) return showBanner('Сначала создайте код на этом устройстве.');
+      const text = codeBox.value.trim();
+      if (!text) return showBanner('Вставьте ответ второго устройства.');
+      const answer = decodeDesc(text);
+      await pc.setRemoteDescription(answer);
+      setStatus('соединение...');
+    } catch (e) {
+      console.error(e);
+      showBanner('Не удалось применить ответ.');
+      setStatus('ошибка');
+    }
+  };
+
+  copyBtn.onclick = async () => {
+    if (!codeBox.value.trim()) return showBanner('Кода пока нет.');
+    try {
+      await navigator.clipboard.writeText(codeBox.value.trim());
+      showBanner('Код скопирован.');
+    } catch {
+      codeBox.select();
+      document.execCommand('copy');
+      showBanner('Код скопирован.');
+    }
+  };
+
+  function timeNow(){
+    return new Date().toLocaleTimeString('ru-RU', {hour:'2-digit', minute:'2-digit'});
+  }
+
+  function clearEmpty(){
+    if (empty) empty.remove();
+  }
+
+  function addText(text, mine){
+    clearEmpty();
+    const wrap = document.createElement('div');
+    wrap.className = 'bubble ' + (mine ? 'mine' : 'other');
+    const body = document.createElement('div');
+    body.textContent = text;
+    body.style.whiteSpace = 'pre-wrap';
+    body.style.wordBreak = 'break-word';
+    const t = document.createElement('div');
+    t.className = 'time';
+    t.textContent = timeNow();
+    wrap.append(body, t);
+    messages.appendChild(wrap);
+    messages.scrollTop = messages.scrollHeight;
+  }
+
+  function addMedia(blob, kind, mine, name=''){
+    clearEmpty();
+    const url = URL.createObjectURL(blob);
+    const wrap = document.createElement('div');
+    wrap.className = 'bubble ' + (mine ? 'mine' : 'other');
+
+    let media;
+    if (kind === 'image') {
+      media = document.createElement('img');
+      media.src = url;
+      media.alt = name || 'Фото';
+      media.onload = () => messages.scrollTop = messages.scrollHeight;
+    } else if (kind === 'video') {
+      media = document.createElement('video');
+      media.src = url;
+      media.controls = true;
+      media.playsInline = true;
+    } else {
+      media = document.createElement('audio');
+      media.src = url;
+      media.controls = true;
+    }
+
+    wrap.appendChild(media);
+
+    if (name && kind !== 'voice') {
+      const n = document.createElement('div');
+      n.className = 'file-name';
+      n.textContent = name;
+      wrap.appendChild(n);
+    }
+
+    const t = document.createElement('div');
+    t.className = 'time';
+    t.textContent = timeNow();
+    wrap.appendChild(t);
+    messages.appendChild(wrap);
+    messages.scrollTop = messages.scrollHeight;
+  }
+
+  function sendText(){
+    const text = input.value.trim();
+    if (!text || !dc || dc.readyState !== 'open') return;
+    dc.send(JSON.stringify({type:'text', text}));
+    addText(text, true);
+    input.value = '';
+    input.style.height = '44px';
+  }
+
+  sendBtn.onclick = sendText;
+  input.addEventListener('keydown', e => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      sendText();
+    }
+  });
+
+  input.addEventListener('input', () => {
+    input.style.height = '44px';
+    input.style.height = Math.min(input.scrollHeight, 110) + 'px';
+  });
+
+  attachBtn.onclick = () => fileInput.click();
+
+  fileInput.onchange = async () => {
+    const file = fileInput.files[0];
+    fileInput.value = '';
+    if (!file) return;
+    if (file.size > MAX_FILE) return showBanner('Файл слишком большой. Лимит этого мини-чата: 50 МБ.');
+
+    const kind = file.type.startsWith('image/') ? 'image' :
+                 file.type.startsWith('video/') ? 'video' : 'file';
+
+    if (kind === 'file') return showBanner('Можно отправлять только фото и видео.');
+
+    await sendBlob(file, kind, file.name);
+  };
+
+  async function waitBuffer(){
+    if (!dc || dc.readyState !== 'open') throw new Error('channel closed');
+    if (dc.bufferedAmount < 512 * 1024) return;
+    await new Promise(resolve => {
+      const fn = () => {
+        dc.removeEventListener('bufferedamountlow', fn);
+        resolve();
+      };
+      dc.addEventListener('bufferedamountlow', fn, {once:true});
+    });
+  }
+
+  async function sendBlob(blob, kind, name){
+    if (!dc || dc.readyState !== 'open') return showBanner('Нет соединения.');
+    try {
+      dc.send(JSON.stringify({
+        type:'file-start',
+        name:name || (kind === 'voice' ? 'voice.webm' : 'file'),
+        mime:blob.type || 'application/octet-stream',
+        size:blob.size,
+        kind
+      }));
+
+      const buffer = await blob.arrayBuffer();
+      for (let offset = 0; offset < buffer.byteLength; offset += CHUNK) {
+        await waitBuffer();
+        dc.send(buffer.slice(offset, offset + CHUNK));
+      }
+      dc.send(JSON.stringify({type:'file-end'}));
+      addMedia(blob, kind, true, name);
+    } catch (e) {
+      console.error(e);
+      showBanner('Не удалось отправить файл.');
+    }
+  }
+
+  voiceBtn.onclick = async () => {
+    if (mediaRecorder && mediaRecorder.state === 'recording') {
+      mediaRecorder.stop();
+      return;
+    }
+
+    try {
+      if (!navigator.mediaDevices?.getUserMedia || !window.MediaRecorder) {
+        return showBanner('Этот браузер не поддерживает запись голосовых.');
+      }
+      const stream = await navigator.mediaDevices.getUserMedia({audio:true});
+      voiceChunks = [];
+
+      let options = {};
+      const preferred = [
+        'audio/webm;codecs=opus',
+        'audio/webm',
+        'audio/mp4'
+      ];
+      for (const type of preferred) {
+        if (MediaRecorder.isTypeSupported(type)) {
+          options = {mimeType:type};
+          break;
+        }
+      }
+
+      mediaRecorder = new MediaRecorder(stream, options);
+      mediaRecorder.ondataavailable = e => {
+        if (e.data && e.data.size) voiceChunks.push(e.data);
+      };
+      mediaRecorder.onstop = async () => {
+        voiceBtn.classList.remove('recording');
+        voiceBtn.textContent = '🎤';
+        stream.getTracks().forEach(t => t.stop());
+
+        const mime = mediaRecorder.mimeType || 'audio/webm';
+        const blob = new Blob(voiceChunks, {type:mime});
+        if (blob.size > 0) await sendBlob(blob, 'voice', 'Голосовое');
+        mediaRecorder = null;
+      };
+
+      mediaRecorder.start(250);
+      voiceBtn.classList.add('recording');
+      voiceBtn.textContent = '■';
+    } catch (e) {
+      console.error(e);
+      showBanner('Нет доступа к микрофону. Для iPhone страница должна быть открыта по HTTPS.');
+    }
+  };
+
+  window.addEventListener('beforeunload', () => {
+    try { dc && dc.close(); } catch(e){}
+    try { pc && pc.close(); } catch(e){}
+  });
+})();
+</script>
+</body>
+</html>
