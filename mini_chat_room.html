@@ -1,0 +1,831 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#111111">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<title>Mini Chat</title>
+<style>
+:root{
+  --bg:#f2f2f2;
+  --panel:#fff;
+  --text:#111;
+  --muted:#777;
+  --line:#dedede;
+  --mine:#dff6dd;
+  --other:#fff;
+  --danger:#c62828;
+}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif;background:var(--bg);color:var(--text)}
+body{display:flex;justify-content:center}
+.app{
+  width:100%;
+  max-width:720px;
+  min-height:100dvh;
+  background:#fff;
+  display:flex;
+  flex-direction:column;
+}
+header{
+  height:58px;
+  flex:0 0 auto;
+  padding:calc(8px + env(safe-area-inset-top)) 16px 8px;
+  border-bottom:1px solid var(--line);
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+}
+.title{font-size:18px;font-weight:700}
+.status{font-size:12px;color:var(--muted)}
+.status.ok{color:#138a3d}
+.lobby{
+  flex:1;
+  padding:24px 18px;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  background:#f6f6f6;
+}
+.card{
+  width:100%;
+  max-width:440px;
+  background:#fff;
+  border:1px solid var(--line);
+  border-radius:18px;
+  padding:20px;
+}
+.card h1{font-size:24px;margin:0 0 8px}
+.card p{color:var(--muted);font-size:14px;line-height:1.45;margin:0 0 18px}
+button{
+  width:100%;
+  border:1px solid var(--line);
+  background:#fff;
+  color:#111;
+  min-height:48px;
+  border-radius:12px;
+  padding:11px 14px;
+  font-size:16px;
+  font-weight:700;
+  cursor:pointer;
+}
+button.primary{background:#111;color:#fff;border-color:#111}
+button:disabled{opacity:.45;cursor:not-allowed}
+.divider{
+  display:flex;
+  align-items:center;
+  gap:10px;
+  color:#999;
+  font-size:12px;
+  margin:18px 0;
+}
+.divider:before,.divider:after{content:"";height:1px;background:var(--line);flex:1}
+.joinRow{display:grid;grid-template-columns:1fr auto;gap:8px}
+.codeInput{
+  width:100%;
+  min-height:48px;
+  border:1px solid var(--line);
+  border-radius:12px;
+  padding:10px 14px;
+  font-size:24px;
+  letter-spacing:5px;
+  text-align:center;
+  outline:none;
+}
+.joinRow button{width:auto;min-width:105px}
+.roomBox{
+  display:none;
+  margin-top:18px;
+  border:1px solid var(--line);
+  border-radius:14px;
+  padding:16px;
+  text-align:center;
+  background:#fafafa;
+}
+.roomLabel{font-size:12px;color:var(--muted);margin-bottom:4px}
+.roomCode{font-size:38px;font-weight:800;letter-spacing:7px;margin:2px 0 12px}
+.roomActions{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.roomActions button{font-size:14px}
+.note{font-size:12px;color:var(--muted);line-height:1.45;margin-top:14px}
+.error{
+  display:none;
+  margin-bottom:12px;
+  padding:10px 12px;
+  border-radius:10px;
+  background:#fff0ef;
+  color:#9f1d17;
+  font-size:13px;
+}
+.chat{
+  display:none;
+  flex:1;
+  min-height:0;
+  flex-direction:column;
+  background:#ececec;
+}
+.messages{
+  flex:1;
+  overflow:auto;
+  padding:14px 12px 94px;
+}
+.empty{
+  min-height:100%;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  color:#888;
+  text-align:center;
+  padding:30px;
+}
+.bubble{
+  max-width:84%;
+  width:max-content;
+  min-width:60px;
+  padding:9px 11px;
+  margin:7px 0;
+  border-radius:14px;
+  box-shadow:0 1px 2px rgba(0,0,0,.05);
+  overflow:hidden;
+}
+.bubble.mine{
+  margin-left:auto;
+  background:var(--mine);
+  border-bottom-right-radius:4px;
+}
+.bubble.other{
+  margin-right:auto;
+  background:var(--other);
+  border-bottom-left-radius:4px;
+}
+.text{white-space:pre-wrap;word-break:break-word;font-size:15px;line-height:1.35}
+.time{font-size:10px;color:#777;text-align:right;margin-top:5px}
+.bubble img,.bubble video{
+  display:block;
+  max-width:min(380px,100%);
+  max-height:420px;
+  border-radius:10px;
+}
+.bubble audio{display:block;width:min(290px,70vw)}
+.fileName{font-size:11px;color:#777;margin-top:5px;word-break:break-all}
+.composer{
+  position:fixed;
+  left:50%;
+  bottom:0;
+  transform:translateX(-50%);
+  width:100%;
+  max-width:720px;
+  display:none;
+  grid-template-columns:44px 44px 1fr 44px;
+  gap:7px;
+  align-items:end;
+  padding:8px 10px calc(8px + env(safe-area-inset-bottom));
+  background:#fff;
+  border-top:1px solid var(--line);
+}
+.iconBtn{
+  width:44px;
+  min-height:44px;
+  height:44px;
+  padding:0;
+  font-size:20px;
+  border-radius:12px;
+}
+.input{
+  width:100%;
+  height:44px;
+  min-height:44px;
+  max-height:110px;
+  resize:none;
+  border:1px solid var(--line);
+  border-radius:12px;
+  padding:10px 12px;
+  font:inherit;
+  font-size:16px;
+  outline:none;
+}
+.recording{background:#ffe5e2!important;color:var(--danger)!important;border-color:#eab2ad!important}
+.topRoom{font-size:12px;color:var(--muted)}
+.progress{
+  display:none;
+  position:fixed;
+  left:50%;
+  bottom:calc(70px + env(safe-area-inset-bottom));
+  transform:translateX(-50%);
+  width:min(90%,420px);
+  background:#111;
+  color:#fff;
+  padding:9px 12px;
+  border-radius:10px;
+  text-align:center;
+  font-size:12px;
+  z-index:20;
+}
+@media(max-width:520px){
+  .card{border:none;border-radius:0;padding:12px;background:transparent}
+  .lobby{align-items:flex-start;padding-top:38px}
+  .roomCode{font-size:34px}
+  .bubble{max-width:90%}
+}
+</style>
+</head>
+<body>
+<div class="app">
+  <header>
+    <div>
+      <div class="title">Mini Chat</div>
+      <div id="topRoom" class="topRoom"></div>
+    </div>
+    <div id="status" class="status">не подключено</div>
+  </header>
+
+  <section id="lobby" class="lobby">
+    <div class="card">
+      <h1>Быстрый чат</h1>
+      <p>Создай комнату или введи код другого человека. История после закрытия страницы не сохраняется.</p>
+
+      <div id="error" class="error"></div>
+
+      <button id="createBtn" class="primary">Создать комнату</button>
+
+      <div class="divider">или</div>
+
+      <div class="joinRow">
+        <input id="roomInput" class="codeInput" inputmode="numeric" maxlength="6" placeholder="000000" autocomplete="off">
+        <button id="joinBtn">Войти</button>
+      </div>
+
+      <div id="roomBox" class="roomBox">
+        <div class="roomLabel">Код комнаты</div>
+        <div id="roomCode" class="roomCode">000000</div>
+        <div class="roomActions">
+          <button id="copyCodeBtn">Копировать код</button>
+          <button id="copyLinkBtn">Копировать ссылку</button>
+        </div>
+        <div id="waitingText" class="note">Жду второго человека…</div>
+      </div>
+
+      <div class="note">
+        Фото, видео и голосовые передаются только во время текущего соединения.
+      </div>
+    </div>
+  </section>
+
+  <section id="chat" class="chat">
+    <div id="messages" class="messages">
+      <div id="empty" class="empty">Соединение установлено.<br>Можно писать и отправлять файлы.</div>
+    </div>
+  </section>
+</div>
+
+<div id="composer" class="composer">
+  <button id="attachBtn" class="iconBtn" title="Фото или видео">＋</button>
+  <button id="voiceBtn" class="iconBtn" title="Голосовое">🎤</button>
+  <textarea id="messageInput" class="input" rows="1" placeholder="Сообщение"></textarea>
+  <button id="sendBtn" class="iconBtn primary" title="Отправить">➤</button>
+  <input id="fileInput" type="file" accept="image/*,video/*" hidden>
+</div>
+
+<div id="progress" class="progress"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/peerjs@1.5.5/dist/peerjs.min.js"></script>
+<script>
+(() => {
+  "use strict";
+
+  const $ = id => document.getElementById(id);
+  const lobby = $("lobby");
+  const chat = $("chat");
+  const composer = $("composer");
+  const statusEl = $("status");
+  const topRoom = $("topRoom");
+  const errorEl = $("error");
+  const createBtn = $("createBtn");
+  const joinBtn = $("joinBtn");
+  const roomInput = $("roomInput");
+  const roomBox = $("roomBox");
+  const roomCode = $("roomCode");
+  const waitingText = $("waitingText");
+  const copyCodeBtn = $("copyCodeBtn");
+  const copyLinkBtn = $("copyLinkBtn");
+  const messages = $("messages");
+  const empty = $("empty");
+  const attachBtn = $("attachBtn");
+  const voiceBtn = $("voiceBtn");
+  const fileInput = $("fileInput");
+  const messageInput = $("messageInput");
+  const sendBtn = $("sendBtn");
+  const progress = $("progress");
+
+  let peer = null;
+  let conn = null;
+  let activeRoom = "";
+  let mediaRecorder = null;
+  let audioStream = null;
+  let audioChunks = [];
+  let incomingFiles = new Map();
+
+  const MAX_FILE = 30 * 1024 * 1024;
+  const CHUNK_SIZE = 32 * 1024;
+  const PREFIX = "ma-mini-room-";
+
+  function setStatus(text, ok=false){
+    statusEl.textContent = text;
+    statusEl.classList.toggle("ok", ok);
+  }
+
+  function showError(text){
+    errorEl.textContent = text;
+    errorEl.style.display = "block";
+  }
+
+  function clearError(){
+    errorEl.style.display = "none";
+    errorEl.textContent = "";
+  }
+
+  function sanitizeCode(v){
+    return String(v || "").replace(/\D/g,"").slice(0,6);
+  }
+
+  function randomCode(){
+    return String(Math.floor(100000 + Math.random() * 900000));
+  }
+
+  function cleanupPeer(){
+    try { if (conn) conn.close(); } catch(e){}
+    try { if (peer) peer.destroy(); } catch(e){}
+    conn = null;
+    peer = null;
+  }
+
+  function showRoom(code){
+    activeRoom = code;
+    roomCode.textContent = code;
+    roomBox.style.display = "block";
+    topRoom.textContent = "Комната " + code;
+  }
+
+  function showChat(){
+    clearError();
+    lobby.style.display = "none";
+    chat.style.display = "flex";
+    composer.style.display = "grid";
+    setStatus("подключено", true);
+    topRoom.textContent = activeRoom ? "Комната " + activeRoom : "";
+    setTimeout(() => messageInput.focus(), 100);
+  }
+
+  function disconnectView(){
+    setStatus("соединение закрыто");
+  }
+
+  function configureConnection(c){
+    conn = c;
+
+    conn.on("open", () => {
+      waitingText.textContent = "Собеседник подключён.";
+      showChat();
+    });
+
+    conn.on("data", data => {
+      handleIncoming(data);
+    });
+
+    conn.on("close", () => {
+      disconnectView();
+    });
+
+    conn.on("error", err => {
+      console.error(err);
+      showError("Ошибка соединения.");
+    });
+  }
+
+  function createRoom(attempt=0){
+    clearError();
+    cleanupPeer();
+    roomBox.style.display = "none";
+    createBtn.disabled = true;
+    joinBtn.disabled = true;
+    setStatus("создаю комнату...");
+
+    const code = randomCode();
+    const p = new Peer(PREFIX + code);
+    peer = p;
+
+    let resolved = false;
+
+    p.on("open", () => {
+      resolved = true;
+      createBtn.disabled = false;
+      joinBtn.disabled = false;
+      showRoom(code);
+      setStatus("жду собеседника");
+      waitingText.textContent = "Жду второго человека…";
+
+      p.on("connection", c => {
+        if (conn && conn.open) {
+          c.close();
+          return;
+        }
+        configureConnection(c);
+      });
+    });
+
+    p.on("error", err => {
+      console.error(err);
+      if (err && err.type === "unavailable-id" && attempt < 5) {
+        try { p.destroy(); } catch(e){}
+        createRoom(attempt + 1);
+        return;
+      }
+      createBtn.disabled = false;
+      joinBtn.disabled = false;
+      setStatus("ошибка");
+      showError("Не удалось создать комнату. Проверь интернет и попробуй ещё раз.");
+    });
+
+    setTimeout(() => {
+      if (!resolved && peer === p) {
+        createBtn.disabled = false;
+        joinBtn.disabled = false;
+      }
+    }, 8000);
+  }
+
+  function joinRoom(){
+    clearError();
+    const code = sanitizeCode(roomInput.value);
+    roomInput.value = code;
+
+    if (code.length !== 6) {
+      showError("Введи 6 цифр кода комнаты.");
+      return;
+    }
+
+    cleanupPeer();
+    activeRoom = code;
+    topRoom.textContent = "Комната " + code;
+    createBtn.disabled = true;
+    joinBtn.disabled = true;
+    setStatus("подключаюсь...");
+
+    const p = new Peer();
+    peer = p;
+
+    p.on("open", () => {
+      const c = p.connect(PREFIX + code, {
+        reliable: true,
+        serialization: "binary"
+      });
+      configureConnection(c);
+
+      let opened = false;
+      c.on("open", () => { opened = true; });
+
+      setTimeout(() => {
+        if (!opened && (!c || !c.open)) {
+          createBtn.disabled = false;
+          joinBtn.disabled = false;
+          setStatus("не подключено");
+          showError("Не получилось войти. Проверь код и убедись, что создатель комнаты не закрыл страницу.");
+        }
+      }, 10000);
+    });
+
+    p.on("error", err => {
+      console.error(err);
+      createBtn.disabled = false;
+      joinBtn.disabled = false;
+      setStatus("ошибка");
+      if (err && (err.type === "peer-unavailable" || err.type === "network")) {
+        showError("Комната не найдена или недоступна.");
+      } else {
+        showError("Ошибка подключения. Попробуй ещё раз.");
+      }
+    });
+  }
+
+  createBtn.onclick = () => createRoom();
+  joinBtn.onclick = joinRoom;
+
+  roomInput.addEventListener("input", () => {
+    roomInput.value = sanitizeCode(roomInput.value);
+  });
+
+  roomInput.addEventListener("keydown", e => {
+    if (e.key === "Enter") joinRoom();
+  });
+
+  async function copyText(text, success){
+    try {
+      await navigator.clipboard.writeText(text);
+      waitingText.textContent = success;
+      setTimeout(() => {
+        if (!conn || !conn.open) waitingText.textContent = "Жду второго человека…";
+      }, 1800);
+    } catch(e) {
+      showError("Не удалось скопировать автоматически.");
+    }
+  }
+
+  copyCodeBtn.onclick = () => {
+    if (activeRoom) copyText(activeRoom, "Код скопирован.");
+  };
+
+  copyLinkBtn.onclick = () => {
+    if (!activeRoom) return;
+    const url = new URL(location.href);
+    url.searchParams.set("room", activeRoom);
+    copyText(url.toString(), "Ссылка скопирована.");
+  };
+
+  function timeNow(){
+    return new Date().toLocaleTimeString("ru-RU", {hour:"2-digit",minute:"2-digit"});
+  }
+
+  function removeEmpty(){
+    const el = document.getElementById("empty");
+    if (el) el.remove();
+  }
+
+  function addText(text, mine){
+    removeEmpty();
+    const b = document.createElement("div");
+    b.className = "bubble " + (mine ? "mine" : "other");
+
+    const t = document.createElement("div");
+    t.className = "text";
+    t.textContent = text;
+
+    const tm = document.createElement("div");
+    tm.className = "time";
+    tm.textContent = timeNow();
+
+    b.append(t,tm);
+    messages.appendChild(b);
+    messages.scrollTop = messages.scrollHeight;
+  }
+
+  function addMedia(blob, kind, mine, name){
+    removeEmpty();
+    const b = document.createElement("div");
+    b.className = "bubble " + (mine ? "mine" : "other");
+    const url = URL.createObjectURL(blob);
+    let el;
+
+    if (kind === "image") {
+      el = document.createElement("img");
+      el.src = url;
+      el.alt = "Фото";
+      el.onload = () => messages.scrollTop = messages.scrollHeight;
+    } else if (kind === "video") {
+      el = document.createElement("video");
+      el.src = url;
+      el.controls = true;
+      el.playsInline = true;
+    } else {
+      el = document.createElement("audio");
+      el.src = url;
+      el.controls = true;
+    }
+
+    b.appendChild(el);
+
+    if (name && kind !== "voice") {
+      const n = document.createElement("div");
+      n.className = "fileName";
+      n.textContent = name;
+      b.appendChild(n);
+    }
+
+    const tm = document.createElement("div");
+    tm.className = "time";
+    tm.textContent = timeNow();
+    b.appendChild(tm);
+
+    messages.appendChild(b);
+    messages.scrollTop = messages.scrollHeight;
+  }
+
+  function canSend(){
+    return conn && conn.open;
+  }
+
+  function sendMessage(){
+    const text = messageInput.value.trim();
+    if (!text || !canSend()) return;
+    conn.send({type:"text", text});
+    addText(text, true);
+    messageInput.value = "";
+    messageInput.style.height = "44px";
+  }
+
+  sendBtn.onclick = sendMessage;
+  messageInput.addEventListener("keydown", e => {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      sendMessage();
+    }
+  });
+
+  messageInput.addEventListener("input", () => {
+    messageInput.style.height = "44px";
+    messageInput.style.height = Math.min(messageInput.scrollHeight,110) + "px";
+  });
+
+  attachBtn.onclick = () => fileInput.click();
+
+  fileInput.onchange = async () => {
+    const file = fileInput.files && fileInput.files[0];
+    fileInput.value = "";
+    if (!file) return;
+
+    if (file.size > MAX_FILE) {
+      alert("Файл слишком большой. Максимум 30 МБ.");
+      return;
+    }
+
+    let kind = "";
+    if (file.type.startsWith("image/")) kind = "image";
+    if (file.type.startsWith("video/")) kind = "video";
+    if (!kind) {
+      alert("Можно отправлять фото и видео.");
+      return;
+    }
+
+    await sendBlob(file, kind, file.name);
+  };
+
+  function sleep(ms){
+    return new Promise(r => setTimeout(r, ms));
+  }
+
+  async function waitForBuffer(){
+    if (!conn || !conn.open) throw new Error("connection closed");
+    const dc = conn.dataChannel;
+    if (!dc) return;
+    while (dc.bufferedAmount > 512 * 1024) {
+      await sleep(30);
+      if (!conn || !conn.open) throw new Error("connection closed");
+    }
+  }
+
+  async function sendBlob(blob, kind, name){
+    if (!canSend()) return;
+
+    const id = Date.now().toString(36) + Math.random().toString(36).slice(2);
+    const buffer = await blob.arrayBuffer();
+    const totalChunks = Math.ceil(buffer.byteLength / CHUNK_SIZE);
+
+    progress.style.display = "block";
+    progress.textContent = "Отправка 0%";
+
+    conn.send({
+      type:"file-start",
+      id,
+      kind,
+      name:name || "",
+      mime:blob.type || "application/octet-stream",
+      size:buffer.byteLength,
+      totalChunks
+    });
+
+    for (let i=0; i<totalChunks; i++) {
+      await waitForBuffer();
+      const start = i * CHUNK_SIZE;
+      const end = Math.min(start + CHUNK_SIZE, buffer.byteLength);
+      const chunk = buffer.slice(start,end);
+      conn.send({type:"file-chunk", id, index:i, data:chunk});
+      const pct = Math.round(((i+1)/totalChunks)*100);
+      progress.textContent = "Отправка " + pct + "%";
+    }
+
+    conn.send({type:"file-end", id});
+    addMedia(blob, kind, true, name);
+    progress.style.display = "none";
+  }
+
+  function handleIncoming(data){
+    if (!data || typeof data !== "object") return;
+
+    if (data.type === "text") {
+      addText(String(data.text || ""), false);
+      return;
+    }
+
+    if (data.type === "file-start") {
+      incomingFiles.set(data.id, {
+        kind:data.kind,
+        name:data.name || "",
+        mime:data.mime || "application/octet-stream",
+        size:data.size || 0,
+        totalChunks:data.totalChunks || 0,
+        chunks:[]
+      });
+      progress.style.display = "block";
+      progress.textContent = "Получение 0%";
+      return;
+    }
+
+    if (data.type === "file-chunk") {
+      const f = incomingFiles.get(data.id);
+      if (!f) return;
+      f.chunks[data.index] = data.data;
+      const got = f.chunks.filter(Boolean).length;
+      const pct = f.totalChunks ? Math.round((got/f.totalChunks)*100) : 0;
+      progress.textContent = "Получение " + pct + "%";
+      return;
+    }
+
+    if (data.type === "file-end") {
+      const f = incomingFiles.get(data.id);
+      if (!f) return;
+      const blob = new Blob(f.chunks, {type:f.mime});
+      addMedia(blob, f.kind, false, f.name);
+      incomingFiles.delete(data.id);
+      progress.style.display = "none";
+    }
+  }
+
+  voiceBtn.onclick = async () => {
+    if (mediaRecorder && mediaRecorder.state === "recording") {
+      mediaRecorder.stop();
+      return;
+    }
+
+    try {
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia || !window.MediaRecorder) {
+        alert("Этот браузер не поддерживает запись голосовых.");
+        return;
+      }
+
+      audioStream = await navigator.mediaDevices.getUserMedia({audio:true});
+      audioChunks = [];
+
+      let options = {};
+      const types = ["audio/webm;codecs=opus","audio/webm","audio/mp4"];
+      for (const type of types) {
+        if (MediaRecorder.isTypeSupported(type)) {
+          options = {mimeType:type};
+          break;
+        }
+      }
+
+      mediaRecorder = new MediaRecorder(audioStream, options);
+
+      mediaRecorder.ondataavailable = e => {
+        if (e.data && e.data.size) audioChunks.push(e.data);
+      };
+
+      mediaRecorder.onstop = async () => {
+        voiceBtn.classList.remove("recording");
+        voiceBtn.textContent = "🎤";
+        if (audioStream) audioStream.getTracks().forEach(t => t.stop());
+
+        const mime = mediaRecorder.mimeType || "audio/webm";
+        const blob = new Blob(audioChunks, {type:mime});
+
+        if (blob.size > 0) {
+          if (blob.size > MAX_FILE) {
+            alert("Голосовое слишком длинное.");
+          } else {
+            await sendBlob(blob, "voice", "Голосовое");
+          }
+        }
+
+        mediaRecorder = null;
+        audioStream = null;
+      };
+
+      mediaRecorder.start(250);
+      voiceBtn.classList.add("recording");
+      voiceBtn.textContent = "■";
+
+    } catch(err) {
+      console.error(err);
+      alert("Нет доступа к микрофону. Разреши доступ к микрофону в браузере.");
+    }
+  };
+
+  const urlRoom = sanitizeCode(new URLSearchParams(location.search).get("room"));
+  if (urlRoom.length === 6) {
+    roomInput.value = urlRoom;
+  }
+
+  window.addEventListener("beforeunload", () => {
+    try { if (audioStream) audioStream.getTracks().forEach(t => t.stop()); } catch(e){}
+    cleanupPeer();
+  });
+
+  if (typeof Peer === "undefined") {
+    showError("Не загрузился модуль соединения. Проверь интернет.");
+    createBtn.disabled = true;
+    joinBtn.disabled = true;
+  }
+})();
+</script>
+</body>
+</html>
